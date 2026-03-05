@@ -1,0 +1,16 @@
+ secrets
+.env
+data/sample-meeting-transcripts/
+
+# venv / python
+.venv/
+__pycache__/
+*.pyc
+
+# test cache
+.pytest_cache/
+
+# editors
+.vscode/
+.idea/
+.DS_Store
