@@ -7,7 +7,32 @@ from ..parsing import parse_meeting_from_path
 from ..supabase_client import get_supabase_client
 
 
-def _process_file(file_path: Path, supabase, source: str, with_chunks: bool) -> bool:
+# extract project name from the first folder under the base path
+def _get_project_name(file_path: Path, base_path: Path) -> str | None:
+    relative_path = file_path.relative_to(base_path)
+
+    if len(relative_path.parts) < 2:
+        return None
+
+    return relative_path.parts[0]
+
+
+def _get_or_create_project_id(supabase, project_name: str) -> str:
+    # insert or fetch project and return its id
+    result = (
+        supabase.table("projects")
+        .upsert({"name": project_name}, on_conflict="name")
+        .execute()
+    )
+
+    rows = result.data or []
+    if not rows:
+        raise ValueError(f"failed to get or create project: {project_name}")
+
+    return rows[0]["id"]
+
+
+def _process_file(file_path: Path, base_path: Path, supabase, source: str, with_chunks: bool) -> bool:
     # process a single transcript file and store it in the database
 
     parsed = parse_meeting_from_path(file_path)
@@ -16,8 +41,16 @@ def _process_file(file_path: Path, supabase, source: str, with_chunks: bool) -> 
     if not transcript.strip():
         logging.warning("Skipping empty transcript: %s", file_path.name)
         return False
+    
+    # resolve project from folder structure
+    project_name = _get_project_name(file_path, base_path)
+    project_id = None
+
+    if project_name:
+        project_id = _get_or_create_project_id(supabase, project_name)
 
     meeting_payload = {
+        "project_id": project_id,
         "title": parsed.title,
         "meeting_date": parsed.meeting_date.isoformat(),
         "source": source,
@@ -81,7 +114,7 @@ def ingest_meetings(base_path: Path, source: str = "manual", with_chunks: bool =
     for file_path in files:
         logging.info("Processing file: %s", file_path)
 
-        if _process_file(file_path, supabase, source, with_chunks):
+        if _process_file(file_path, base_path, supabase, source, with_chunks):
             inserted_count += 1
 
     logging.info("Finished ingesting %s meetings", inserted_count)
