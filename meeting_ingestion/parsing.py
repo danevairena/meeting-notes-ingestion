@@ -79,6 +79,11 @@ def parse_meeting_from_path(file_path: Path) -> ParsedMeeting:
     month_index = _parse_month(month)
     meeting_dt = date(fallback_year, month_index, day)
 
+    # adjust year if parsed meeting date falls in the future
+    today = date.today()
+    if meeting_dt > today:
+        meeting_dt = date(fallback_year - 1, month_index, day)
+
     return ParsedMeeting(
         title=title,
         meeting_date=meeting_dt,
