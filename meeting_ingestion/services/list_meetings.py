@@ -1,4 +1,4 @@
-from .supabase_client import get_supabase_client
+from ..supabase_client import get_supabase_client
 
 
 def list_meetings() -> list[dict]:
