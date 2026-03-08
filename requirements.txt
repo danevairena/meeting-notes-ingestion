@@ -3,3 +3,5 @@ python-dotenv
 python-docx
 pytest
 ruff
+google-genai
+pydantic
