@@ -51,6 +51,20 @@ Rules:
 - If the transcript is very short or unclear, return empty lists.
 """
 
+# prompt for generating one final summary from chunk summaries
+FINAL_SUMMARY_PROMPT = """
+You are given multiple partial summaries from different chunks of the same meeting.
+
+Write one final clean meeting summary in 3 to 5 sentences.
+
+Rules:
+- combine overlapping information
+- remove repetition
+- keep only the most important points
+- do not invent information
+- return plain text only
+"""
+
 # initialize gemini client using api key from config
 client = genai.Client(api_key=config.GEMINI_API_KEY)
 
@@ -79,3 +93,22 @@ def extract_notes(transcript: str) -> tuple[dict[str, object], str]:
 
     # return structured notes as dict and the raw llm response
     return parsed.model_dump(), raw_llm
+
+# generate one final summary from multiple chunk summaries
+def generate_final_summary(summaries: list[str]) -> str:
+    cleaned_summaries = [summary.strip() for summary in summaries if summary.strip()]
+    if not cleaned_summaries:
+        return ""
+
+    response = client.models.generate_content(
+        model=config.GEMINI_MODEL,
+        contents=(
+            f"{FINAL_SUMMARY_PROMPT}\n\n"
+            f"Chunk summaries:\n" + "\n".join(f"- {summary}" for summary in cleaned_summaries)
+        ),
+        config=types.GenerateContentConfig(
+            temperature=0,
+        ),
+    )
+
+    return (response.text or "").strip()
