@@ -1,6 +1,6 @@
 import logging
 
-from ..llm_client import extract_notes
+from ..llm_client import extract_notes, generate_final_summary
 from ..supabase_client import get_supabase_client
 
 
@@ -122,8 +122,14 @@ def _merge_chunk_notes(results: list[dict[str, object]]) -> dict[str, object]:
         topics.extend(result.get("topics") or [])
         next_steps.extend(result.get("next_steps") or [])
 
+    # if there is only one summary, reuse it or generate a clean final summary using the llm
+    if len(summaries) == 1:
+        final_summary = summaries[0]
+    else:
+        final_summary = generate_final_summary(summaries)
+
     return {
-        "summary": " ".join(summaries[:3]).strip(),
+        "summary": final_summary,
         "action_items": _remove_duplicates_action_items(action_items),
         "key_takeaways": list(dict.fromkeys(s.strip() for s in key_takeaways if s.strip())),
         "topics": list(dict.fromkeys(s.strip() for s in topics if s.strip())),
@@ -152,6 +158,7 @@ def generate_notes_for_meeting(meeting_id: str) -> dict:
         raw_llm = ""
     else:
         chunks = _get_transcript_chunks(meeting_id)
+        logging.info("Processing %s transcript chunks for meeting %s", len(chunks), meeting_id)
 
         if not chunks:
             chunks = [transcript]
@@ -192,7 +199,7 @@ def generate_notes_for_meeting(meeting_id: str) -> dict:
 
     rows = result.data or []
     if not rows:
-        raise ValueError(f"failed to store notes for meeting: {meeting_id}")
+        raise ValueError(f"Failed to store notes for meeting: {meeting_id}")
 
-    logging.info("stored notes for meeting %s", meeting_id)
+    logging.info("Stored notes for meeting %s", meeting_id)
     return rows[0]
