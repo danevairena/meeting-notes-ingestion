@@ -1,7 +1,7 @@
 import logging
 
-from llm_client import extract_notes
-from supabase_client import get_supabase_client
+from ..llm_client import extract_notes
+from ..supabase_client import get_supabase_client
 
 
 # load a single meeting row by id
