@@ -50,6 +50,7 @@ def test_process_file_inserts_meeting_and_chunks(monkeypatch):
 
     result = _process_file(
         file_path=Path("meeting.docx"),
+        base_path=Path("."),
         supabase=fake_supabase,
         source="manual",
         with_chunks=True,
@@ -80,6 +81,7 @@ def test_process_file_skips_empty_transcript(monkeypatch):
 
     result = _process_file(
         file_path=Path("meeting.docx"),
+        base_path=Path("."),
         supabase=fake_supabase,
         source="manual",
         with_chunks=True,
@@ -125,6 +127,7 @@ def test_process_file_handles_insert_failure(monkeypatch):
 
     result = _process_file(
         file_path=Path("meeting.docx"),
+        base_path=Path("."),
         supabase=fake_supabase,
         source="manual",
         with_chunks=True,
