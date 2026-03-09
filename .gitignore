@@ -1,6 +1,7 @@
  secrets
 .env
 data/sample-meeting-transcripts/
+exports/
 
 # venv / python
 .venv/
