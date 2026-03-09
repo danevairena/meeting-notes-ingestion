@@ -9,9 +9,16 @@ def test_merge_chunk_notes_deduplicates_and_uses_final_summary(monkeypatch):
         ]
         return "Final merged summary"
 
+    def fake_rewrite_notes(notes: dict) -> tuple[dict, str]:
+        return notes, "raw rewritten output"
+
     monkeypatch.setattr(
         "meeting_ingestion.services.extract_notes.generate_final_summary",
         fake_generate_final_summary,
+    )
+    monkeypatch.setattr(
+        "meeting_ingestion.services.extract_notes.rewrite_notes",
+        fake_rewrite_notes,
     )
 
     results = [
