@@ -61,6 +61,7 @@ notes table
 ```
 meeting_ingestion/
 │
+├─ __init__.py
 ├─ chunking.py
 ├─ config.py
 ├─ docx_reader.py
@@ -69,44 +70,104 @@ meeting_ingestion/
 ├─ llm_client.py
 │
 ├─ services/
+│   ├─ __init__.py
 │   ├─ ingest.py
 │   ├─ extract_notes.py
-│   ├─ process_all_meetings.py
-│   └─ list_meetings.py
+│   ├─ export_notes.py
+│   ├─ list_meetings.py
+│   └─ process_all_meetings.py
+│
+├─ migrations/
+│   ├─ 001_init.sql
+│   └─ 002_update_notes_for_llm_pipeline.sql
 │
 scripts/
 │
 ├─ run_ingest.py
 ├─ run_list_meetings.py
 ├─ run_extract_notes.py
-└─ run_process_all_meetings.py
+├─ run_process_all_meetings.py
+├─ run_export_all_notes.py
+├─ test_connection.py
+└─ test_gemini.py
 │
 tests/
+│
+├─ test_chunking.py
+├─ test_docx_reader.py
+├─ test_extract_notes.py
+├─ test_ingest.py
+└─ test_parsing.py
 ```
 
-## Module Responsibilities
+---
 
-Each module has a single responsibility:
+# Module Responsibilities
 
-- **docx_reader** — extracts transcript text from Word documents  
-- **parsing** — parses meeting metadata from filenames  
-- **chunking** — splits transcripts into overlapping text chunks  
-- **supabase_client** — handles Supabase database connection  
-- **llm_client** — handles communication with the Gemini API and structured LLM outputs  
+Each module has a **single responsibility**, following a modular pipeline architecture.
 
-### Services
+## Core Modules
 
-- **services/ingest** — ingestion pipeline that reads DOCX files and stores transcripts and chunks in the database  
-- **services/list_meetings** — retrieves stored meetings from the database  
-- **services/extract_notes** — generates structured meeting notes using the LLM  
-- **services/process_all_meetings** — batch processing for meetings that do not yet have notes  
+- **docx_reader** — extracts transcript text from Word (`.docx`) meeting files  
+- **parsing** — parses meeting metadata (title, date, etc.) from filenames  
+- **chunking** — splits long transcripts into overlapping chunks for LLM processing  
+- **supabase_client** — manages the Supabase database connection  
+- **llm_client** — communicates with the Gemini API and handles structured LLM outputs  
 
-### Scripts
+---
 
-- **run_ingest.py** — CLI runner for ingesting meeting transcripts  
-- **run_list_meetings.py** — CLI runner for listing stored meetings  
-- **run_extract_notes.py** — generates notes for a single meeting  
-- **run_process_all_meetings.py** — generates notes for all meetings without notes  
+# Services
+
+The `services` layer contains the main application pipelines.
+
+- **services/ingest**  
+  Reads DOCX files, extracts transcripts, and stores meetings and transcript chunks in the database.
+
+- **services/list_meetings**  
+  Retrieves stored meetings from the database.
+
+- **services/extract_notes**  
+  Runs the LLM extraction pipeline to generate structured meeting notes:
+  - summary  
+  - action items  
+  - key takeaways  
+  - topics  
+  - next steps  
+
+- **services/process_all_meetings**  
+  Batch processing pipeline that generates notes for all meetings that do not yet have notes.
+
+- **services/export_notes**  
+  Exports generated meeting notes into structured **DOCX files**, grouped by project.
+
+---
+
+# Scripts
+
+The `scripts` directory contains CLI entry points used to run different parts of the pipeline.
+
+- **run_ingest.py** — ingest meeting transcripts from DOCX files  
+- **run_list_meetings.py** — list meetings stored in the database  
+- **run_extract_notes.py** — generate notes for a single meeting  
+- **run_process_all_meetings.py** — generate notes for all meetings without notes  
+- **run_export_all_notes.py** — export generated notes into DOCX files  
+
+Utility scripts:
+
+- **test_connection.py** — verifies database connectivity  
+- **test_gemini.py** — tests Gemini API integration
+
+---
+
+# Tests
+
+The `tests` directory contains unit tests for the core pipeline components.
+
+- **test_chunking.py** — tests transcript chunking logic  
+- **test_docx_reader.py** — tests DOCX transcript extraction  
+- **test_extract_notes.py** — tests meeting note extraction and merging  
+- **test_ingest.py** — tests the ingestion pipeline  
+- **test_parsing.py** — tests metadata parsing from filenames
 
 ---
 
@@ -258,9 +319,9 @@ python -m scripts.run_process_all_meetings
 
 # LLM Extraction Strategy
 
-The system uses Gemini structured outputs validated with a Pydantic schema.
+The system uses **Gemini structured outputs** validated with a **Pydantic schema**.
 
-Fields extracted:
+## Fields extracted
 
 - summary
 - action_items
@@ -268,18 +329,20 @@ Fields extracted:
 - topics
 - next_steps
 
+## Handling Long Transcripts
+
 For long transcripts:
 
-1. transcripts are split into chunks
-2. each chunk is processed independently
-3. results are merged
-4. a final LLM call produces a clean meeting summary
+1. The transcript is split into smaller chunks.
+2. Each chunk is processed independently by the LLM.
+3. The results are merged into a single structured result.
+4. A final LLM rewrite step produces a clean and consistent meeting notes document.
 
 ---
 
-## Prompt Strategy
+# Prompt Strategy
 
-We use a structured prompt instructing the LLM to extract meeting notes in a strict JSON schema.
+We use a structured prompt that instructs the LLM to extract meeting notes following a **strict JSON schema**.
 
 The schema includes:
 
@@ -289,28 +352,34 @@ The schema includes:
 - topics
 - next_steps
 
-The Gemini SDK validates the response against a **Pydantic schema (`MeetingNotes`)**, ensuring the returned structure matches the expected format.
+The **Gemini SDK validates the response using a Pydantic schema (`MeetingNotes`)**, ensuring that the returned structure matches the expected format.
 
 Chunking is used for long transcripts to avoid context limits. Each chunk is processed independently and then merged.
 
 ---
 
-## Output Validation and Normalization
+# Output Validation and Normalization
 
-The pipeline validates and cleans LLM outputs using several steps:
+The pipeline validates and cleans LLM outputs using several steps.
 
-### 1. Schema validation
-Structured outputs are validated using a Pydantic model.
+## 1. Schema validation
 
-### 2. Normalization
+Structured outputs are validated using a **Pydantic model**, ensuring that all required fields exist and follow the expected structure.
+
+## 2. Normalization
+
 The pipeline removes:
+
 - empty action items
 - duplicated action items
 - duplicated topics
 - duplicated key takeaways
 
-### 3. Edge case handling
-The following edge cases are handled:
+This ensures the structured data remains clean and consistent.
+
+## 3. Edge case handling
+
+The pipeline explicitly handles several edge cases:
 
 - transcript too short
 - transcript too long (chunking)
@@ -318,8 +387,19 @@ The following edge cases are handled:
 - duplicated action items
 - missing owners or due dates
 
-### 4. Final summarization
-For long transcripts, chunk summaries are merged and a final LLM call generates a clean meeting summary.
+## 4. Final rewrite and summarization
+
+After merging chunk-level notes, a **final LLM rewrite step** is applied.
+
+This step improves readability and removes redundant information while preserving the structured format.
+
+The rewrite stage ensures that:
+
+- the summary is concise and readable
+- action items are clearly phrased as tasks
+- duplicated or overly detailed items are removed
+- topics are grouped into broader categories
+- the output remains consistent with the defined JSON schema
 
 ---
 
