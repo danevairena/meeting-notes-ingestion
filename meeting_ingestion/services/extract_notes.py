@@ -1,6 +1,6 @@
 import logging
 
-from ..llm_client import extract_notes, generate_final_summary
+from ..llm_client import extract_notes, generate_final_summary, rewrite_notes
 from ..supabase_client import get_supabase_client
 
 
@@ -112,29 +112,40 @@ def _merge_chunk_notes(results: list[dict[str, object]]) -> dict[str, object]:
     topics: list[str] = []
     next_steps: list[dict] = []
 
+    # collect summaries and structured fields from each chunk
     for result in results:
         summary = str(result.get("summary") or "").strip()
         if summary:
             summaries.append(summary)
 
+        # merge action items, takeaways, topics, and next steps from all chunks
         action_items.extend(result.get("action_items") or [])
         key_takeaways.extend(result.get("key_takeaways") or [])
         topics.extend(result.get("topics") or [])
         next_steps.extend(result.get("next_steps") or [])
 
-    # if there is only one summary, reuse it or generate a clean final summary using the llm
+    # reuse the single summary or generate a final summary from multiple chunk summaries
     if len(summaries) == 1:
         final_summary = summaries[0]
     else:
         final_summary = generate_final_summary(summaries)
 
-    return {
+    merged_notes = {
         "summary": final_summary,
         "action_items": _remove_duplicates_action_items(action_items),
-        "key_takeaways": list(dict.fromkeys(s.strip() for s in key_takeaways if s.strip())),
-        "topics": list(dict.fromkeys(s.strip() for s in topics if s.strip())),
+        # deduplicate simple list fields while preserving order
+        "key_takeaways": list(
+            dict.fromkeys(s.strip() for s in key_takeaways if s.strip())
+        ),
+        "topics": list(
+            dict.fromkeys(s.strip() for s in topics if s.strip())
+        ),
         "next_steps": _remove_duplicates_next_steps(next_steps),
     }
+
+    # run final rewrite pass to clean and compress notes
+    cleaned_notes, _ = rewrite_notes(merged_notes)
+    return cleaned_notes
 
 
 # generate notes for one meeting and save them in the notes table
