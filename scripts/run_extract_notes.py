@@ -10,6 +10,11 @@ def main() -> None:
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
+
+     # reduce noisy logs from libraries
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("google_genai").setLevel(logging.WARNING)
+    
     result = generate_notes_for_meeting(args.meeting_id)
     logging.info("notes generated for meeting %s", result["meeting_id"])
 
